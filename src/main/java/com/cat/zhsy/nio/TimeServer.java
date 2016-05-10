@@ -3,11 +3,10 @@ package com.cat.zhsy.nio;
 public class TimeServer {
 
 	public static void main(String[] args) {
-		int port = 8888;
 
-		MultiplexerTimeServer timeServer = new MultiplexerTimeServer(port);
+		MultiplexerTimeServer timeServer = new MultiplexerTimeServer(Config.port);
 
-		new Thread(timeServer, "MultiplexerTimeServer").start();
+		new Thread(timeServer).start();
 	}
 
 }

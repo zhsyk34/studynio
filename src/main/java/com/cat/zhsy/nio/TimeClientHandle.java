@@ -39,6 +39,7 @@ public class TimeClientHandle implements Runnable {
 			doConnect();
 		} catch (IOException e) {
 			e.printStackTrace();
+			System.exit(1);
 		}
 
 		while (!stop) {
@@ -47,17 +48,14 @@ public class TimeClientHandle implements Runnable {
 
 				Set<SelectionKey> keys = selector.selectedKeys();
 				Iterator<SelectionKey> it = keys.iterator();
-				SelectionKey key = null;
 				while (it.hasNext()) {
-					key = it.next();
+					SelectionKey key = it.next();
 					it.remove();
 					handleInput(key);
 
 					if (key != null) {
 						key.channel();
-						if (key.channel() != null) {
-							key.channel().close();
-						}
+						Util.close(key.channel());
 					}
 				}
 			} catch (IOException e) {
@@ -68,11 +66,16 @@ public class TimeClientHandle implements Runnable {
 	}
 
 	private void handleInput(SelectionKey key) throws IOException {
+		if (!key.isValid()) {
+			return;
+		}
+
 		SocketChannel sc = (SocketChannel) key.channel();
 
 		if (key.isConnectable()) {
 			if (sc.finishConnect()) {
 				sc.register(selector, SelectionKey.OP_READ);
+				System.out.println("已连接...");
 				doWrite(sc);
 			} else {
 				System.exit(1);
@@ -113,13 +116,11 @@ public class TimeClientHandle implements Runnable {
 	}
 
 	private void doWrite(SocketChannel sc) throws IOException {
-		byte[] req = "QUERY TIME ORDER".getBytes();
-		ByteBuffer writeBuffer = ByteBuffer.allocate(req.length);
-		writeBuffer.put(req);
+		ByteBuffer writeBuffer = ByteBuffer.wrap("query".getBytes());
 		writeBuffer.flip();
 		sc.write(writeBuffer);
 		if (!writeBuffer.hasRemaining()) {
-			System.out.println("Send order 2 server succeed.");
+			System.out.println("Send order to server succeed.");
 		}
 	}
 
