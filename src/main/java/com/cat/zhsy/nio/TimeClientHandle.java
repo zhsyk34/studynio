@@ -6,18 +6,22 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
-import java.util.Iterator;
-import java.util.Set;
+import java.util.Random;
 
+import com.cat.zhsy.config.Config;
+import com.cat.zhsy.util.SelectHandle;
 import com.cat.zhsy.util.Util;
 
 public class TimeClientHandle implements Runnable {
 
 	private String host;
 	private int port;
+
 	private Selector selector;
 	private SocketChannel socketChannel;
-	private volatile boolean stop;
+
+	// test to send
+	private final String sendStr = Integer.toString(new Random().nextInt(100));
 
 	public TimeClientHandle(String host, int port) {
 		this.host = host;
@@ -30,7 +34,6 @@ public class TimeClientHandle implements Runnable {
 			e.printStackTrace();
 			System.exit(1);
 		}
-
 	}
 
 	@Override
@@ -42,85 +45,71 @@ public class TimeClientHandle implements Runnable {
 			System.exit(1);
 		}
 
-		while (!stop) {
-			try {
-				selector.select(1000);
+		try {
+			new SelectHandle(selector, Config.TIMEOUT) {
+				@Override
+				protected void read(SelectionKey key) throws IOException {
+					SocketChannel sc = (SocketChannel) key.channel();
+					ByteBuffer readBuffer = ByteBuffer.allocate(1024);
+					int readBytes = sc.read(readBuffer);
 
-				Set<SelectionKey> keys = selector.selectedKeys();
-				Iterator<SelectionKey> it = keys.iterator();
-				while (it.hasNext()) {
-					SelectionKey key = it.next();
-					it.remove();
-					handleInput(key);
+					if (readBytes > 0) {
+						readBuffer.flip();
 
-					if (key != null) {
-						key.channel();
-						Util.close(key.channel());
+						byte[] bytes = new byte[readBuffer.remaining()];
+						readBuffer.get(bytes);
+
+						String body = new String(bytes, "UTF-8");
+						System.out.println("receive response from server: " + body);
+						stop();
+					} else if (readBytes < 0) {
+						key.cancel();
+						sc.close();
+					} else {
 					}
 				}
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		}
-		Util.close(selector);
-	}
 
-	private void handleInput(SelectionKey key) throws IOException {
-		if (!key.isValid()) {
-			return;
-		}
+				@Override
+				protected void connect(SelectionKey key) throws IOException {
+					SocketChannel sc = (SocketChannel) key.channel();
+					if (sc.finishConnect()) {
+						sc.register(selector, SelectionKey.OP_READ);
+						System.out.print("client is connect");
+						Util.write(socketChannel, sendStr);
+						System.out.println(", and send data: " + sendStr);
+					} else {
+						System.exit(1);
+					}
+				}
 
-		SocketChannel sc = (SocketChannel) key.channel();
+				@Override
+				protected void accept(SelectionKey key) throws IOException {
+					// TODO Auto-generated method stub
 
-		if (key.isConnectable()) {
-			if (sc.finishConnect()) {
-				sc.register(selector, SelectionKey.OP_READ);
-				System.out.println("已连接...");
-				doWrite(sc);
-			} else {
-				System.exit(1);
-			}
-		}
+				}
 
-		if (key.isReadable()) {
-			ByteBuffer readBuffer = ByteBuffer.allocate(1024);
-			int readBytes = sc.read(readBuffer);
+				@Override
+				protected void write(SelectionKey key) throws IOException {
+					// TODO Auto-generated method stub
 
-			if (readBytes > 0) {
-				readBuffer.flip();
-
-				byte[] bytes = new byte[readBuffer.remaining()];
-				readBuffer.get(bytes);
-
-				String body = new String(bytes, "UTF-8");
-				System.out.println("now is" + body);
-				this.stop = true;
-			} else if (readBytes < 0) {
-				key.cancel();
-				sc.close();
-			} else {
-			}
+				}
+			}.handle();
+		} catch (Throwable e) {
+			e.printStackTrace();
 		}
 
 	}
 
+	// 连接处理
 	private void doConnect() throws IOException {
-		// 如果直接连接成功，则注册到多路复用器上，发送请求消息，读应答
-		if (socketChannel.connect(new InetSocketAddress(host, port))) {
-			socketChannel.register(selector, SelectionKey.OP_READ);
-			doWrite(socketChannel);
+		boolean isConnected = socketChannel.connect(new InetSocketAddress(host, port));
+		if (isConnected) {
+			socketChannel.register(selector, SelectionKey.OP_READ);// 连接成功后发送数据并监听读事件
+			Util.write(socketChannel, sendStr);
+			System.out.println("client is already connect server,send data: " + sendStr);
 		} else {
-			socketChannel.register(selector, SelectionKey.OP_CONNECT);
-		}
-
-	}
-
-	private void doWrite(SocketChannel sc) throws IOException {
-		ByteBuffer writeBuffer = ByteBuffer.wrap("query".getBytes());
-		writeBuffer.flip();
-		sc.write(writeBuffer);
-		if (!writeBuffer.hasRemaining()) {
-			System.out.println("Send order to server succeed.");
+			socketChannel.register(selector, SelectionKey.OP_CONNECT);// 注册连接,成功后进行监听
+			System.out.println("listen connect...");
 		}
 	}
 
