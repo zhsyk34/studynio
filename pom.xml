@@ -15,6 +15,9 @@
 		<maven-compiler-plugin>3.5.1</maven-compiler-plugin>
 		<maven.compiler.source>1.8</maven.compiler.source>
 		<maven.compiler.target>1.8</maven.compiler.target>
+
+		<netty.version>5.0.0.Alpha1</netty.version>
+		<junit.version>4.12</junit.version>
 	</properties>
 
 	<dependencies>
@@ -22,13 +25,13 @@
 		<dependency>
 			<groupId>io.netty</groupId>
 			<artifactId>netty-all</artifactId>
-			<version>4.1.0.CR7</version>
+			<version>${netty.version}</version>
 		</dependency>
 		<!-- junit -->
 		<dependency>
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
-			<version>4.12</version>
+			<version>${junit.version}</version>
 		</dependency>
 	</dependencies>
 
